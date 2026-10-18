@@ -27,6 +27,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -223,7 +226,7 @@ fun HomeScreen(vm: MainViewModel, photos: List<ByteArray>, modifier: Modifier) {
                 }) { Icon(Icons.Filled.Cameraswitch, contentDescription = "Switch camera", tint = Color.White) }
             }
 
-            // Tray: shots so far, delete last, Scan.
+            // Tray: shots so far, delete last, quick Lens, Scan.
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Glass).padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -250,6 +253,21 @@ fun HomeScreen(vm: MainViewModel, photos: List<ByteArray>, modifier: Modifier) {
                         tint = if (photos.isNotEmpty()) Color(0xFFFF8A80) else Color.White.copy(alpha = 0.3f),
                     )
                 }
+                // Quick Lens: straight to Google Lens with every photo in one picture. No AI, no
+                // key, no waiting; the saved Lens question is copied to paste in Lens.
+                OutlinedButton(
+                    onClick = {
+                        GoogleLens.open(context, Images.collage(photos), vm.settings.lensQuestion.ifBlank { null })
+                    },
+                    enabled = photos.isNotEmpty(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.White, disabledContentColor = Color.White.copy(alpha = 0.4f),
+                    ),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = if (photos.isNotEmpty()) 0.7f else 0.25f)),
+                    contentPadding = PaddingValues(horizontal = 14.dp),
+                    modifier = Modifier.heightIn(min = 52.dp),
+                ) { Text("Lens", fontWeight = FontWeight.Bold) }
                 Button(
                     onClick = { vm.identify("") },
                     enabled = photos.isNotEmpty(),
