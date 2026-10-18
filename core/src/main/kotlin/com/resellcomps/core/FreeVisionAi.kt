@@ -69,6 +69,19 @@ class FreeVisionAi(
             TagExpert.apply(item, extractJsonObject(content), currentQuery)
         }
 
+    /**
+     * Reads the sold listings off the user's screenshots of eBay's sold results. [screenText] is
+     * what the phone's text reader got from the same screenshots, to keep the numbers exact.
+     */
+    fun readSoldListings(
+        screenshots: List<ByteArray>, item: ItemIdentification, query: String, screenText: String?,
+        onWait: (Int) -> Unit = {},
+    ): List<SoldComp> =
+        withWorkingModel(onWait) { model ->
+            val content = chat(model, SoldValue.SYSTEM, SoldValue.userText(item, query, screenText), screenshots, 3000)
+            SoldValue.parse(extractJsonObject(content))
+        }
+
     /** Finds a model that reads photos (remembering it), and waits out per-minute limits. */
     private fun <T> withWorkingModel(onWait: (Int) -> Unit, request: (String) -> T): T {
         val working = workingModels[baseUrl]

@@ -8,6 +8,8 @@ import com.resellcomps.core.FreeIdentification
 import com.resellcomps.core.FreeVisionAi
 import com.resellcomps.core.IdentifyPrompt
 import com.resellcomps.core.ItemIdentification
+import com.resellcomps.core.SoldComp
+import com.resellcomps.core.SoldValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +24,15 @@ sealed interface Screen {
     data class Failed(val message: String, val canRetryIdentify: Boolean) : Screen
 }
 
+/** The value worked out from the user's screenshots of eBay's sold results. */
+sealed interface ValueState {
+    data object Idle : ValueState
+    data class Working(val message: String) : ValueState
+    /** Every listing read; the user can tap one to count it in or leave it out. */
+    data class Done(val comps: List<SoldComp>, val query: String) : ValueState
+    data class Failed(val message: String) : ValueState
+}
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     val settings = Settings(app)
 
@@ -32,6 +43,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val photos: StateFlow<List<ByteArray>> = _photos
 
     private var lastHint = ""
+
+    private val _value = MutableStateFlow<ValueState>(ValueState.Idle)
+    val value: StateFlow<ValueState> = _value
 
     /** Gallery photos join the ones on the camera screen; Scan identifies them all together. */
     fun addPhotos(uris: List<Uri>) {
@@ -59,6 +73,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Straight to the search screen with no photo: type a search and tap eBay Active/Sold. */
     fun startTextSearch() {
         _photos.value = emptyList()
+        _value.value = ValueState.Idle
         _screen.value = Screen.Identified(
             ItemIdentification(
                 name = "", brand = null, model = null, category = "", details = "",
@@ -82,6 +97,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun identify(hint: String) {
         lastHint = hint
         val photos = _photos.value.takeIf { it.isNotEmpty() } ?: return
+        _value.value = ValueState.Idle
         viewModelScope.launch {
             _screen.value = Screen.Busy("Identifying the item…")
             runCatching {
@@ -241,7 +257,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Value from real sales: reads the sold listings off the user's own screenshots of eBay's sold
+     * results (the app never loads eBay pages itself), then the math happens in [SoldValue].
+     */
+    fun valueFromScreenshots(uris: List<Uri>, item: ItemIdentification, query: String) {
+        if (uris.isEmpty()) return
+        if (!hasAi) {
+            _value.value = ValueState.Failed("Reading screenshots needs the free AI key or the on-phone AI (Settings).")
+            return
+        }
+        viewModelScope.launch {
+            val status: (String) -> Unit = { _value.value = ValueState.Working(it) }
+            status("Reading your screenshots…")
+            val result = runCatching {
+                val shots = withContext(Dispatchers.Default) { uris.map { SoldScreenshots.load(getApplication(), it) } }
+                val text = shots.joinToString("\n\n") { it.text }
+                runAi(
+                    cloud = { ai ->
+                        // Free tiers take a few images per request: send the pieces in batches,
+                        // keeping each screenshot's pieces together.
+                        val batches = mutableListOf<MutableList<SoldScreenshots.Shot>>()
+                        shots.forEach { shot ->
+                            val last = batches.lastOrNull()
+                            if (last != null && last.sumOf { it.pieces.size } + shot.pieces.size <= ai.provider.maxImages.coerceAtMost(4)) last += shot
+                            else batches += mutableListOf(shot)
+                        }
+                        SoldValue.merge(*batches.mapIndexed { i, batch ->
+                            if (batches.size > 1) status("Reading sold listings (${i + 1} of ${batches.size})…")
+                            ai.readSoldListings(batch.flatMap { it.pieces }, item, query, batch.joinToString("\n\n") { it.text }) { secs ->
+                                status("Free AI limit for this minute — continuing in ${secs}s…")
+                            }
+                        }.toTypedArray())
+                    },
+                    phone = { ai -> ai.readSoldListings(text, item, query, status) },
+                    status = status,
+                )
+            }
+            _value.value = result.fold(
+                onSuccess = { comps ->
+                    if (comps.isEmpty()) ValueState.Failed("No sold listings found on those screenshots. Open eBay Sold, screenshot the results, and pick those.")
+                    else ValueState.Done(comps, query)
+                },
+                onFailure = { ValueState.Failed(describe(it)) },
+            )
+        }
+    }
+
+    /** Counts a listing in, or leaves it out, and the value is worked out again. */
+    fun toggleComp(index: Int) {
+        val done = _value.value as? ValueState.Done ?: return
+        _value.value = done.copy(comps = done.comps.mapIndexed { i, c -> if (i == index) c.copy(match = !c.match) else c })
+    }
+
+    fun clearValue() {
+        _value.value = ValueState.Idle
+    }
+
     fun reset() {
+        _value.value = ValueState.Idle
         _photos.value = emptyList()
         _screen.value = Screen.Home
     }

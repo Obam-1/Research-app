@@ -3,6 +3,9 @@ package com.resellcomps.app.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -51,6 +54,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.resellcomps.app.ValueState
 import com.resellcomps.core.ItemIdentification
 import com.resellcomps.core.SoldSearchLinks
 import com.resellcomps.core.TagGuide
@@ -79,6 +83,10 @@ fun IdentifiedScreen(
     modifier: Modifier,
     /** Progress of the tag check running behind this screen, or null when it's done. */
     tagCheck: String? = null,
+    valueState: ValueState = ValueState.Idle,
+    /** Screenshots of eBay's sold results the user picked, with the search on screen. */
+    onSoldScreenshots: (List<Uri>, String) -> Unit = { _, _ -> },
+    onToggleComp: (Int) -> Unit = {},
     onRetake: () -> Unit,
     onAddPhoto: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -182,6 +190,18 @@ fun IdentifiedScreen(
                 }
             }
         }
+
+        val pickSoldScreenshots = rememberLauncherForActivityResult(
+            ActivityResultContracts.PickMultipleVisualMedia(5)
+        ) { uris -> if (uris.isNotEmpty()) onSoldScreenshots(uris, q) }
+        ValueCard(
+            state = valueState,
+            currentQuery = q,
+            onPickScreenshots = {
+                pickSoldScreenshots.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onToggle = onToggleComp,
+        )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = onAddPhoto, modifier = Modifier.weight(1f)) { Text(if (textMode) "Use a photo" else "Add tag photo") }

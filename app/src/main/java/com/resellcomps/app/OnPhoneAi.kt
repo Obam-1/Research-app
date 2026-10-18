@@ -15,6 +15,8 @@ import com.google.mlkit.genai.prompt.generationConfig
 import com.resellcomps.core.FreeVisionAi
 import com.resellcomps.core.IdentifyPrompt
 import com.resellcomps.core.ItemIdentification
+import com.resellcomps.core.SoldComp
+import com.resellcomps.core.SoldValue
 import com.resellcomps.core.TagExpert
 import java.io.IOException
 
@@ -62,6 +64,18 @@ class OnPhoneAi {
         onProgress("Checking the tag on the phone…")
         val text = ask(TagExpert.SYSTEM, TagExpert.userText(item), photos)
         return TagExpert.apply(item, FreeVisionAi.extractJsonObject(text), currentQuery)
+    }
+
+    /**
+     * Sold listings from the text the phone read off the screenshots (the on-phone model can't
+     * read small print from images, so it gets the text only).
+     */
+    suspend fun readSoldListings(screenText: String, item: ItemIdentification, query: String, onProgress: (String) -> Unit): List<SoldComp> {
+        if (screenText.isBlank()) throw IOException("No text could be read from those screenshots.")
+        ensureReady(onProgress)
+        onProgress("Reading the sold listings on the phone…")
+        val text = run(SoldValue.SYSTEM, SoldValue.userText(item, query, screenText), emptyList())
+        return SoldValue.parse(FreeVisionAi.extractJsonObject(text))
     }
 
     /**

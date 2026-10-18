@@ -59,6 +59,7 @@ fun App(vm: MainViewModel) {
     MaterialTheme(colorScheme = colors) {
         val screen by vm.screen.collectAsState()
         val photos by vm.photos.collectAsState()
+        val value by vm.value.collectAsState()
         var showSettings by rememberSaveable { mutableStateOf(!vm.settings.seenSettings) }
         var showGuide by rememberSaveable { mutableStateOf(false) }
         val canGoBack = showSettings || showGuide || screen !is Screen.Home || photos.isNotEmpty()
@@ -108,6 +109,9 @@ fun App(vm: MainViewModel) {
                     is Screen.Identified -> IdentifiedScreen(
                         s.item, photos, modifier,
                         tagCheck = s.tagCheck,
+                        valueState = value,
+                        onSoldScreenshots = { uris, q -> vm.valueFromScreenshots(uris, s.item, q) },
+                        onToggleComp = vm::toggleComp,
                         onRetake = vm::reset,
                         onAddPhoto = vm::backToPhotos,
                         onOpenSettings = { showSettings = true },
