@@ -29,7 +29,7 @@ sealed interface ValueState {
     data object Idle : ValueState
     data class Working(val message: String) : ValueState
     /** Every listing read; the user can tap one to count it in or leave it out. */
-    data class Done(val comps: List<SoldComp>, val query: String) : ValueState
+    data class Done(val comps: List<SoldComp>, val query: String, val google: SoldValue.GoogleSays? = null) : ValueState
     data class Failed(val message: String) : ValueState
 }
 
@@ -283,21 +283,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             if (last != null && last.sumOf { it.pieces.size } + shot.pieces.size <= ai.provider.maxImages.coerceAtMost(4)) last += shot
                             else batches += mutableListOf(shot)
                         }
-                        SoldValue.merge(*batches.mapIndexed { i, batch ->
+                        SoldValue.merge(batches.mapIndexed { i, batch ->
                             if (batches.size > 1) status("Reading sold listings (${i + 1} of ${batches.size})…")
                             ai.readSoldListings(batch.flatMap { it.pieces }, item, query, batch.joinToString("\n\n") { it.text }) { secs ->
                                 status("Free AI limit for this minute — continuing in ${secs}s…")
                             }
-                        }.toTypedArray())
+                        })
                     },
                     phone = { ai -> ai.readSoldListings(text, item, query, status) },
                     status = status,
                 )
             }
             _value.value = result.fold(
-                onSuccess = { comps ->
-                    if (comps.isEmpty()) ValueState.Failed("No sold listings found on those screenshots. Open eBay Sold, screenshot the results, and pick those.")
-                    else ValueState.Done(comps, query)
+                onSuccess = { reading ->
+                    if (reading.comps.isEmpty() && reading.google == null) {
+                        ValueState.Failed("No prices found on those screenshots. Open eBay Sold (or Google Lens), screenshot the results, and pick those.")
+                    } else ValueState.Done(reading.comps, query, reading.google)
                 },
                 onFailure = { ValueState.Failed(describe(it)) },
             )

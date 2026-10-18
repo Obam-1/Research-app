@@ -58,4 +58,17 @@ class SoldValueTest {
         assertEquals(java.time.LocalDate.of(2026, 10, 14), SoldValue.soldDate("Sold Oct 14, 2026"))
         assertEquals("${'$'}1150", SoldValue.usd(1150.0))
     }
+
+    @Test fun googleValueIsReadButKeptApartFromTheSolds() {
+        val o = Json.parseToJsonElement("""{"listings":[],"google_value":{"value":"${'$'}150 - ${'$'}400","summary":"Based on listings","sources":["eBay","Grailed","eBay"]}}""") as JsonObject
+        val r = SoldValue.read(o)
+        assertTrue(r.comps.isEmpty())
+        assertEquals("${'$'}150 - ${'$'}400", r.google!!.value)
+        assertEquals(listOf("eBay", "Grailed"), r.google!!.sources)
+        assertNull(SoldValue.estimate(r.comps))
+        val merged = SoldValue.merge(listOf(SoldValue.Reading(listOf(comp(100.0)), null), r))
+        assertEquals(1, merged.comps.size)
+        assertEquals("Based on listings", merged.google!!.summary)
+        assertNull(SoldValue.read(Json.parseToJsonElement("""{"listings":[],"google_value":null}""") as JsonObject).google)
+    }
 }

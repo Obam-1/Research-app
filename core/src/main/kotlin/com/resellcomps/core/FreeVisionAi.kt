@@ -76,10 +76,10 @@ class FreeVisionAi(
     fun readSoldListings(
         screenshots: List<ByteArray>, item: ItemIdentification, query: String, screenText: String?,
         onWait: (Int) -> Unit = {},
-    ): List<SoldComp> =
+    ): SoldValue.Reading =
         withWorkingModel(onWait) { model ->
             val content = chat(model, SoldValue.SYSTEM, SoldValue.userText(item, query, screenText), screenshots, 3000)
-            SoldValue.parse(extractJsonObject(content))
+            SoldValue.read(extractJsonObject(content))
         }
 
     /** Finds a model that reads photos (remembering it), and waits out per-minute limits. */

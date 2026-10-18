@@ -35,6 +35,15 @@ data class SoldComp(
  */
 object SoldValue {
 
+    /**
+     * What Google (Lens or Search) said the item is worth, read off the user's screenshot. Kept
+     * apart from the sold math: it's an AI summary of web pages, mostly asking prices.
+     */
+    data class GoogleSays(val value: String, val summary: String?, val sources: List<String>)
+
+    /** Everything read off one set of screenshots. */
+    data class Reading(val comps: List<SoldComp>, val google: GoogleSays?)
+
     val SYSTEM = """
         You read screenshots of eBay sold-listing search results for a reseller. Copy what is on
         the screen; never invent a listing or a price, and never estimate one.
@@ -54,7 +63,15 @@ object SoldValue {
         original. Put the reason in why in a few words.
         Reply with only a JSON object: {"listings":[{"title":"...","price":24.99,"shipping":0,
         "sold_date":"Sold Oct 14, 2026","best_offer":false,"match":true,"why":"same item"}]}.
-        If the screenshots don't show eBay sold results, reply {"listings":[]}.
+        Some screenshots may instead show Google Lens or Google Search answering what the item is
+        worth (an AI overview or shopping results). For those, copy what Google says in
+        google_value: "value" (the price or range exactly as Google wrote it), "summary" (one
+        sentence of what it based that on, or null) and "sources" (the site names it shows or
+        cites, e.g. "eBay", "WorthPoint", "Poshmark"). Don't put Google's prices or shopping
+        results into listings. If no screenshot shows that, set google_value to null.
+        Full reply shape: {"listings":[...],"google_value":{"value":"${'$'}40-${'$'}80","summary":"...",
+        "sources":["eBay"]}}. If nothing on the screenshots shows prices, reply
+        {"listings":[],"google_value":null}.
     """.trimIndent()
 
     fun userText(item: ItemIdentification, query: String, screenText: String?): String = buildString {
@@ -69,6 +86,17 @@ object SoldValue {
             append(screenText.take(6000))
         }
         append("\n\nList every sold listing on these screenshots.")
+    }
+
+    fun read(o: JsonObject): Reading = Reading(parse(o), google(o))
+
+    private fun google(o: JsonObject): GoogleSays? {
+        val g = o["google_value"] as? JsonObject ?: return null
+        fun str(k: String) = (g[k] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() && it != "null" }
+        val value = str("value") ?: return null
+        val sources = (g["sources"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim() }
+            .filter { it.isNotEmpty() }.distinct()
+        return GoogleSays(value, str("summary"), sources)
     }
 
     fun parse(o: JsonObject): List<SoldComp> =
@@ -94,6 +122,10 @@ object SoldValue {
         if (t.startsWith("free")) return 0.0
         return Regex("""(\d[\d,]*(?:\.\d+)?)""").find(t)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
     }
+
+    /** Combines readings from several batches of screenshots. */
+    fun merge(readings: List<Reading>): Reading =
+        Reading(merge(*readings.map { it.comps }.toTypedArray()), readings.firstNotNullOfOrNull { it.google })
 
     /** Combines readings from several screenshots, keeping each listing once. */
     fun merge(vararg batches: List<SoldComp>): List<SoldComp> =

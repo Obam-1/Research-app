@@ -40,6 +40,8 @@ fun ValueCard(
     currentQuery: String,
     onPickScreenshots: () -> Unit,
     onToggle: (Int) -> Unit,
+    /** Opens Google Lens with the item photo and a value question; null in text-only mode. */
+    onAskLens: (() -> Unit)? = null,
 ) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -56,6 +58,7 @@ fun ValueCard(
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Button(onClick = onPickScreenshots, modifier = Modifier.fillMaxWidth()) { Text("Pick sold screenshots") }
+                    LensButton(onAskLens)
                 }
                 is ValueState.Working -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -65,7 +68,11 @@ fun ValueCard(
                     Text(state.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                     OutlinedButton(onClick = onPickScreenshots, modifier = Modifier.fillMaxWidth()) { Text("Pick screenshots again") }
                 }
-                is ValueState.Done -> Result(state, currentQuery, onPickScreenshots, onToggle)
+                is ValueState.Done -> {
+                    Result(state, currentQuery, onPickScreenshots, onToggle)
+                    state.google?.let { GoogleBox(it) }
+                    if (state.google == null) LensButton(onAskLens)
+                }
             }
         }
     }
@@ -77,7 +84,12 @@ private fun Result(state: ValueState.Done, currentQuery: String, onPickScreensho
     if (state.query.isNotBlank() && state.query != currentQuery.trim()) {
         Text("These solds are from the search \"${state.query}\".", style = MaterialTheme.typography.bodySmall)
     }
-    if (estimate == null) {
+    if (state.comps.isEmpty()) {
+        Text(
+            "No sold listings on these screenshots, so no backed price yet. Add eBay Sold screenshots for one.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    } else if (estimate == null) {
         Text("No price: none of the ${state.comps.size} sold listings matched this item.", style = MaterialTheme.typography.titleSmall)
         Text(
             "Without matching sales there's nothing to back a price. Try a broader or different search, then screenshot again — " +
@@ -104,6 +116,10 @@ private fun Result(state: ValueState.Done, currentQuery: String, onPickScreensho
         estimate.reasons.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
     }
 
+    if (state.comps.isEmpty()) {
+        OutlinedButton(onClick = onPickScreenshots, modifier = Modifier.fillMaxWidth()) { Text("Use other screenshots") }
+        return
+    }
     var showAll by rememberSaveable(state.comps.size) { mutableStateOf(estimate == null || state.comps.size <= 6) }
     TextButton(onClick = { showAll = !showAll }) {
         Text(if (showAll) "Hide the listings" else "See all ${state.comps.size} listings read")
@@ -139,4 +155,30 @@ private fun CompRow(comp: SoldComp, onClick: () -> Unit) {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
         }
     }
+}
+
+/** A second opinion: Lens's AI value, opened with the photo and a value question. */
+@Composable
+private fun LensButton(onAskLens: (() -> Unit)?) {
+    if (onAskLens == null) return
+    OutlinedButton(onClick = onAskLens, modifier = Modifier.fillMaxWidth()) { Text("Check value on Google Lens") }
+    Text(
+        "Lens opens with your photo and a value question copied — paste it in \"Add to your search\". " +
+            "Screenshot Lens's answer and pick it here too (with your eBay Sold screenshots).",
+        style = MaterialTheme.typography.bodySmall,
+    )
+}
+
+/** What Google said, kept apart from the sold math and labeled for what it is. */
+@Composable
+private fun GoogleBox(google: SoldValue.GoogleSays) {
+    HorizontalDivider()
+    Text("Google Lens says: ${google.value}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+    google.summary?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+    if (google.sources.isNotEmpty()) Text("Sources it showed: ${google.sources.joinToString(", ")}", style = MaterialTheme.typography.bodySmall)
+    Text(
+        "Not counted in the price above: it's Google's AI summary of web pages, which are mostly asking prices " +
+            "(often higher than what things actually sell for), and it may mix up versions.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
+    )
 }

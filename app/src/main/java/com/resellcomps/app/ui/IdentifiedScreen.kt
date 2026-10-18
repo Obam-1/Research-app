@@ -60,7 +60,11 @@ import com.resellcomps.core.SoldSearchLinks
 import com.resellcomps.core.TagGuide
 
 /** Ready-made questions for Google Lens, picked with one tap. */
+/** What the Value card asks Lens; Lens answers with an AI overview of what it's worth. */
+private const val LENS_VALUE_QUESTION = "How much is this worth? Recent eBay sold prices"
+
 private val LENS_QUESTIONS = listOf(
+    LENS_VALUE_QUESTION,
     "eBay active and sold listings links for this",
     "What year is this tag?",
     "What brand is this?",
@@ -201,6 +205,7 @@ fun IdentifiedScreen(
                 pickSoldScreenshots.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
             onToggle = onToggleComp,
+            onAskLens = photos.firstOrNull()?.let { photo -> { GoogleLens.open(context, photo, LENS_VALUE_QUESTION) } },
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
