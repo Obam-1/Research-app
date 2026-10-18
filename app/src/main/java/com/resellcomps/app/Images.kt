@@ -56,6 +56,34 @@ object Images {
         }
     }
 
+    /**
+     * All the photos in one picture (a grid, two across), for apps like Google Lens that take a
+     * single image: Lens then sees the item and its tags together.
+     */
+    fun collage(photos: List<ByteArray>, cell: Int = 800): ByteArray {
+        val bitmaps = photos.mapNotNull { BitmapFactory.decodeByteArray(it, 0, it.size) }
+        if (bitmaps.size <= 1) return photos.first()
+        val cols = 2
+        val rows = (bitmaps.size + cols - 1) / cols
+        val gap = 8
+        val out = Bitmap.createBitmap(cols * cell + (cols - 1) * gap, rows * cell + (rows - 1) * gap, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(out)
+        canvas.drawColor(android.graphics.Color.WHITE)
+        bitmaps.forEachIndexed { i, b ->
+            // Fit each photo inside its square, centered, without cropping.
+            val scale = cell.toFloat() / max(b.width, b.height)
+            val w = (b.width * scale).toInt()
+            val h = (b.height * scale).toInt()
+            val left = (i % cols) * (cell + gap) + (cell - w) / 2
+            val top = (i / cols) * (cell + gap) + (cell - h) / 2
+            canvas.drawBitmap(b, null, android.graphics.Rect(left, top, left + w, top + h), null)
+        }
+        return ByteArrayOutputStream().use { stream ->
+            out.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+            stream.toByteArray()
+        }
+    }
+
     /** A camera frame (rotated upright, shrunk) as JPEG bytes. */
     fun fromCapture(bitmap: Bitmap, rotationDegrees: Int): ByteArray {
         val longEdge = max(bitmap.width, bitmap.height)

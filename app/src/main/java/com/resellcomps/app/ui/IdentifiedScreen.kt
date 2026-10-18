@@ -54,6 +54,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.resellcomps.app.Images
 import com.resellcomps.app.ValueState
 import com.resellcomps.core.ItemIdentification
 import com.resellcomps.core.SoldSearchLinks
@@ -249,6 +250,18 @@ fun IdentifiedScreen(
                 "Tap a photo: Lens opens with it and your question is copied — tap \"Add to your search\" in Lens and paste.",
                 style = MaterialTheme.typography.bodySmall,
             )
+            if (photos.size > 1) {
+                // Lens takes one picture at a time, so put them all in one picture.
+                OutlinedButton(
+                    onClick = { GoogleLens.open(context, Images.collage(photos), lensSends) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("All ${photos.size} photos in one Lens search") }
+                Text(
+                    "Lens gets one picture with all your photos side by side. In Lens you can drag the box onto " +
+                        "the tag or the item to focus on it.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             PhotoPicker(photos, "Search photo %d with Google Lens") { GoogleLens.open(context, it, lensSends) }
 
             TextButton(onClick = { showDetails = !showDetails }) {
