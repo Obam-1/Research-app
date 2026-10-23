@@ -31,11 +31,6 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("auto_dig_deeper", true)
         set(v) = prefs.edit().putBoolean("auto_dig_deeper", v).apply()
 
-    /** Camera shoots square (1:1) photos instead of the full frame. */
-    var squarePhotos: Boolean
-        get() = prefs.getBoolean("square_photos", false)
-        set(v) = prefs.edit().putBoolean("square_photos", v).apply()
-
     var seenSettings: Boolean
         get() = prefs.getBoolean("seen_settings", false)
         set(v) = prefs.edit().putBoolean("seen_settings", v).apply()

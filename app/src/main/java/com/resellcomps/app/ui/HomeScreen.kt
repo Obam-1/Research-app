@@ -113,7 +113,6 @@ fun HomeScreen(vm: MainViewModel, photos: List<ByteArray>, modifier: Modifier) {
         LifecycleCameraController(context).apply { setEnabledUseCases(CameraController.IMAGE_CAPTURE) }
     }
     var capturing by remember { mutableStateOf(false) }
-    var square by remember { mutableStateOf(vm.settings.squarePhotos) }
 
     fun shoot() {
         if (capturing || room <= 0) return
@@ -124,10 +123,9 @@ fun HomeScreen(vm: MainViewModel, photos: List<ByteArray>, modifier: Modifier) {
                 override fun onCaptureSuccess(image: ImageProxy) {
                     val bitmap = image.toBitmap()
                     val rotation = image.imageInfo.rotationDegrees
-                    val cutSquare = square
                     image.close()
                     scope.launch {
-                        val jpeg = withContext(Dispatchers.Default) { Images.fromCapture(bitmap, rotation, cutSquare) }
+                        val jpeg = withContext(Dispatchers.Default) { Images.fromCapture(bitmap, rotation) }
                         vm.addCapturedPhoto(jpeg)
                         capturing = false
                     }
@@ -142,10 +140,6 @@ fun HomeScreen(vm: MainViewModel, photos: List<ByteArray>, modifier: Modifier) {
     }
 
     Box(modifier.background(Color.Black)) {
-        // In 1:1 the preview is a full-width square, showing exactly the square the photo keeps.
-        val frame = if (square) Modifier.align(Alignment.Center).padding(bottom = 120.dp).fillMaxWidth().aspectRatio(1f)
-        else Modifier.fillMaxSize()
-
         if (hasPermission) {
             AndroidView(
                 factory = { ctx ->
@@ -154,7 +148,7 @@ fun HomeScreen(vm: MainViewModel, photos: List<ByteArray>, modifier: Modifier) {
                         setController(controller)
                     }
                 },
-                modifier = frame,
+                modifier = Modifier.fillMaxSize(),
             )
             // Camera runs only while this screen is showing.
             DisposableEffect(controller, lifecycleOwner) {
@@ -176,9 +170,7 @@ fun HomeScreen(vm: MainViewModel, photos: List<ByteArray>, modifier: Modifier) {
         }
 
         // Frame guides and the step prompt.
-        CornerGuides(
-            Modifier.align(Alignment.Center).padding(bottom = 120.dp).fillMaxWidth(0.84f).aspectRatio(if (square) 1f else 0.78f)
-        )
+        CornerGuides(Modifier.align(Alignment.Center).padding(bottom = 120.dp).fillMaxWidth(0.84f).aspectRatio(0.78f))
         if (room > 0) {
             Text(
                 when (photos.size) {
@@ -205,21 +197,6 @@ fun HomeScreen(vm: MainViewModel, photos: List<ByteArray>, modifier: Modifier) {
             Spacer(Modifier.width(6.dp))
             Text("Type instead", color = Color.White, style = MaterialTheme.typography.labelLarge)
         }
-
-        // Photo shape: full frame or square (1:1).
-        Text(
-            "1:1",
-            color = if (square) Color(0xFF0B2E13) else Color.White,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).clip(RoundedCornerShape(50))
-                .background(if (square) ScanGreen else Glass)
-                .clickable {
-                    square = !square
-                    vm.settings.squarePhotos = square
-                }
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-        )
 
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),

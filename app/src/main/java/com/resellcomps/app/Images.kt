@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
-import kotlin.math.min
 
 object Images {
     /** Long edge sent to Claude; larger images are downscaled server-side anyway. */
@@ -85,20 +84,15 @@ object Images {
         }
     }
 
-    /** A camera frame (rotated upright, shrunk, optionally cut to its center square) as JPEG bytes. */
-    fun fromCapture(bitmap: Bitmap, rotationDegrees: Int, square: Boolean = false): ByteArray {
-        // The center square is the same whichever way the frame is rotated, so cut it first.
-        val w = if (square) min(bitmap.width, bitmap.height) else bitmap.width
-        val h = if (square) w else bitmap.height
-        val x = (bitmap.width - w) / 2
-        val y = (bitmap.height - h) / 2
-        val longEdge = max(w, h)
+    /** A camera frame (rotated upright, shrunk) as JPEG bytes. */
+    fun fromCapture(bitmap: Bitmap, rotationDegrees: Int): ByteArray {
+        val longEdge = max(bitmap.width, bitmap.height)
         val scale = if (longEdge > MAX_EDGE) MAX_EDGE.toFloat() / longEdge else 1f
         val matrix = android.graphics.Matrix().apply {
             postScale(scale, scale)
             postRotate(rotationDegrees.toFloat())
         }
-        val upright = Bitmap.createBitmap(bitmap, x, y, w, h, matrix, true)
+        val upright = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
         return ByteArrayOutputStream().use { out ->
             upright.compress(Bitmap.CompressFormat.JPEG, 85, out)
             out.toByteArray()
